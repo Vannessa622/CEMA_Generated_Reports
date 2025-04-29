@@ -1,0 +1,805 @@
+---
+title: "HIV and Mortality Trends in Africa: A Regional Analysis"
+author: "Veneser Pamelah Onyango"
+date: 2025-04-25
+output: html_document
+---
+
+# Introduction
+
+HIV remains a significant public health challenge in sub-Saharan Africa, with the region accounting for approximately 65% of the 39.9 million people living with HIV globally as of 2023 . Despite advancements in prevention and treatment, the disease continues to impact health systems and socioeconomic conditions, including employment and poverty levels.​
+
+This project utilizes data from the World Health Organization (WHO) and the World Bank to:​
+
+1. Visualize HIV trends in countries contributing to 75% of the global burden.
+
+2. Examine HIV trends within each WHO region.
+
+3. Analyze the relationship between HIV prevalence and multidimensional poverty, considering factors such as income, education, and access to basic services
+
+# Global HIV Trend Analysis
+ 
+ ```
+# Load necessary libraries
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(stringr) 
+
+# Load the dataset
+who_data <- read_csv("CEMA_Project 1/data/HIV data 2000-2023.csv")
+
+# Clean and process the dataset
+who_data <- who_data %>%
+  select(Location, Period, Value) %>%
+  rename(Country = Location, Year = Period, Cases = Value) %>%
+  mutate(Cases = str_remove_all(Cases, "\\[.*\\]")) %>%   # Remove ranges in square brackets
+  mutate(Cases = str_remove_all(Cases, "<|No data")) %>%  # Remove '<' and 'No data'
+  mutate(Cases = str_replace_all(Cases, " ", "")) %>%     # Remove spaces
+  mutate(Cases = as.numeric(Cases)) %>%
+  filter(!is.na(Cases))
+  
+# Calculate total cases by country
+total_cases_by_country <- who_data %>%
+  group_by(Country) %>%
+  summarise(total_cases = sum(Cases, na.rm = TRUE)) %>%
+  arrange(desc(total_cases)) %>%
+  mutate(cumulative_pct = cumsum(total_cases) / sum(total_cases) * 100)
+
+# Identify countries contributing to 75% of the global burden
+top_75_countries <- total_cases_by_country %>%
+  filter(cumulative_pct <= 75) %>%
+  pull(Country)
+
+# Filter data for the top 75% countries
+top_countries_data <- who_data %>%
+  filter(Country %in% top_75_countries)
+
+# Plot HIV trends over time for the top countries
+ggplot(top_countries_data, aes(x = Year, y = Cases, color = Country)) +
+  geom_line() +
+  labs(title = "HIV Trends in Top Contributing Countries",
+       x = "Year",
+       y = "Number of Cases") +
+  theme_minimal()
+```
+
+![HIV Trends in Top Contributing Countries](https://raw.githubusercontent.com/Vannessa622/CEMA_Generated_Reports/master/HIV%20Trends%20in%20Top%20Contributing%20Countries.png)
+## Report: Trend Analysis of HIV Cases in Top Contributing Countries
+### Objective
+The purpose of this report is to analyze the trends of HIV cases in the countries contributing to 75% of the global HIV burden. The visualization examines changes from 2000 to 2020.
+
+## Key Observations from the Visualization
+1. **South Africa:**
+
+- South Africa consistently has the highest number of HIV cases among the analyzed countries.
+
+- Its trend shows a notable increase in cases over time, emphasizing the substantial burden in the country.
+
+2. **High-Burden Countries:**
+
+- **Nigeria:** Exhibits a significant upward trend, solidifying its place as a major contributor to the global burden.
+
+- **Mozambique:** Reflects steady growth in case numbers across the years.
+
+- **Kenya** and **Uganda**: Maintain relatively stable trends but still have high case counts.
+
+3. **Countries with Declining Trends**:
+
+- **Zimbabwe** and **Malawi**: Show slight declines in HIV case numbers over the years, indicating potential improvement in public health interventions.
+
+- **Thailand**: Displays a steady downward trend, marking a strong success in mitigating HIV cases.
+
+4. **Other Countries**:
+
+- **Côte d'Ivoire**, **Zambia**, and **Ethiopia**: Present stable or moderately fluctuating trends.
+
+- **Democratic Republic of the Congo**: Displays a gradual increase, demanding attention to prevent further escalation.
+
+## Interpretation
+
+- **Global Concentration:** A few countries (e.g., South Africa, Nigeria, Mozambique) dominate the case numbers, highlighting the need for targeted interventions in high-burden regions.
+
+- **Public Health Success**: Countries like Thailand and Zimbabwe show that sustained efforts can result in declining trends.
+
+## Recommendations
+
+**Targeted Interventions:**
+
+Focus on countries with increasing case trends, such as South Africa, Nigeria, and Mozambique.
+
+**Resource Allocation:**
+
+Prioritize funding and resources for countries with escalating cases to support testing, treatment, and prevention initiatives.
+
+**Replicating Success:**
+
+Examine strategies employed by Thailand and Zimbabwe to identify effective interventions for other regions.
+
+**Regional Surveillance:**
+
+Strengthen monitoring in stable-trend countries to ensure sustained control and prevent future surges.
+
+# HIV Trends by WHO Region
+```
+# Load necessary libraries
+library(readr)
+library(dplyr)
+library(ggplot2)
+
+# Load the dataset
+who_data <- read_csv("CEMA_Project 1/data/HIV data 2000-2023.csv")
+# Clean and process relevant columns
+who_data_clean <- who_data %>%
+  select(Location, Period, Value, ParentLocationCode) %>%    # Include ParentLocationCode for WHO regions
+  rename(Country = Location, Year = Period, Cases = Value, RegionCode = ParentLocationCode) %>% 
+  mutate(Cases = gsub("\\[.*\\]", "", Cases)) %>%            # Remove ranges within square brackets
+  mutate(Cases = gsub("<|No data", "", Cases)) %>%           # Remove '<' and 'No data'
+  mutate(Cases = gsub(" ", "", Cases)) %>%                   # Remove spaces
+  mutate(Cases = as.numeric(Cases)) %>%                      # Convert Cases to numeric
+  filter(!is.na(Cases))                                      # Remove rows with missing or invalid data
+
+# Calculate total cases by country within each WHO region
+regional_cases <- who_data_clean %>%
+  group_by(RegionCode, Country) %>%
+  summarise(total_cases = sum(Cases, na.rm = TRUE)) %>%
+  arrange(RegionCode, desc(total_cases)) %>%
+  group_by(RegionCode) %>%
+  mutate(cumulative_pct = cumsum(total_cases) / sum(total_cases) * 100)
+
+# Identify countries contributing to 75% of the burden within each region
+top_75_countries_by_region <- regional_cases %>%
+  filter(cumulative_pct <= 75)
+
+# Filter the dataset for visualization
+filtered_data <- who_data_clean %>%
+  semi_join(top_75_countries_by_region, by = c("RegionCode", "Country"))
+# Create visualization for trends within WHO regions
+ggplot(filtered_data, aes(x = Year, y = Cases, color = Country)) +
+  geom_line() +
+  geom_point() +
+  facet_wrap(~ RegionCode, scales = "free_y") +
+  theme_minimal() +
+  labs(title = "HIV Case Trends by WHO Region",
+       subtitle = "Countries Contributing to 75% of the Regional Burden",
+       x = "Year",
+       y = "Number of HIV Cases",
+       color = "Country") +
+  theme(legend.position = "bottom") +
+  guides(color = guide_legend(nrow = 1))
+```
+![HIV Case Trends by WHO](https://raw.githubusercontent.com/Vannessa622/CEMA_Generated_Reports/master/HIV%20Case%20Trends%20by%20WHO%20region.png)
+## Report: HIV Case Trends by WHO Region
+### Objective
+The purpose of this report is to analyze the trends of HIV cases in countries contributing to 75% of the burden within each WHO region. The findings are based on a visualization that categorizes these trends by WHO region.
+
+## Key Findings by WHO Region
+1. **AFR (African Region)**:
+
+- The African Region shows a consistently high number of HIV cases.
+
+- Nigeria and South Africa exhibit significant growth, dominating the region's trends.
+
+- Kenya and Uganda also contribute notably but with relatively steadier trends compared to Nigeria.
+
+2. **AMR (Region of the Americas)**:
+
+- While the overall burden is lower compared to the AFR region, Haiti    demonstrates a clear upward trend in cases.
+
+- Mexico's trends are more stable, with minor fluctuations observed.
+
+3. **EMR (Eastern Mediterranean Region):**
+
+- Sudan exhibits a pronounced sharp increase in HIV cases, becoming a major concern.
+
+- Trends in countries like Pakistan and Iran show a relatively slower rise or stabilization.
+4. **EUR (European Region)**:
+
+- The European Region has fluctuating trends:
+
+  - Spain experienced a peak around 2010, followed by a decline.
+
+  - Portugal shows a steadier decrease over time.
+
+5. **SEAR (South-East Asia Region)**:
+
+- Thailand stands out with a significant reduction in HIV cases, marking an effective public health effort.
+
+- On the other hand, Indonesia shows an increasing trend, suggesting emerging challenges in control.
+
+6. **WPR (Western Pacific Region)**:
+
+- The Philippines displays a consistently rising trend, highlighting a growing epidemic in this region.
+
+- Other countries contribute less notably but show slower rises.
+
+## Interpretation
+- **Regional Diversity**: The trends vary significantly across WHO regions, reflecting the diverse epidemiological landscapes.
+
+- **Concerns**: The sharp increases in Sudan, the Philippines, and Haiti call for targeted intervention strategies.
+
+- **Improvements**: Thailand's declining trend demonstrates the impact of effective public health measures.
+
+## Recommendations
+**Enhanced Surveillance:**
+
+Increase surveillance efforts in regions with rising trends (e.g., Philippines, Sudan, Indonesia).
+
+**Resource Allocation:**
+
+Redirect resources to high-burden countries showing upward trends to curb the growth of new cases.
+
+**Case Studies:**
+
+Study Thailand's public health strategies to replicate success in similar regions.
+
+## Merging the HIV data and multidimensional poverty datasets
+
+```
+# Load required libraries
+library(readr)
+library(readxl)
+library(dplyr)
+library(stringr)
+
+# Load HIV dataset ---
+hiv_df <- read_csv("CEMA_Project 1/data/HIV data 2000-2023.csv")
+
+# Clean HIV data
+hiv_clean <- hiv_df %>%
+  filter(Indicator == "Estimated number of people (all ages) living with HIV") %>%
+  mutate(
+    Value_numeric = str_extract(Value, "^[\\d, ]+") %>%
+                    str_replace_all("[ ,]", "") %>%
+                    as.numeric()
+  ) %>%
+  select(Country = Location, Year = Period, HIV_Estimate = Value_numeric)
+
+# Load full data to inspect header row
+poverty_raw_full <- read_excel("CEMA_Project 1/data/multidimensional_poverty.xlsx", sheet = "data", col_names = FALSE)
+
+# Use row 3 as the actual header (row index = 3, so skip first two rows)
+poverty_data <- read_excel("CEMA_Project 1/data/multidimensional_poverty.xlsx", sheet = "data", skip = 2)
+
+# Rename important columns manually
+names(poverty_data)[1:16] <- c(
+  "Region", "CountryCode", "Country", "ReportingYear", "SurveyName", "SurveyYear",
+  "SurveyCoverage", "WelfareType", "Comparability",
+  "Monetary", "Attainment", "Enrollment", "Electricity",
+  "Sanitation", "Water", "Poverty_Headcount"
+)
+
+# Clean the poverty data
+poverty_clean <- poverty_data %>%
+  filter(!is.na(Country)) %>%
+  select(Country, Year = ReportingYear, Poverty_Headcount, Monetary, Attainment,
+         Enrollment, Electricity, Sanitation, Water)
+
+#Merge HIV and Poverty datasets ---
+merged_df <- left_join(hiv_clean, poverty_clean, by = c("Country", "Year"))
+
+# View the result
+head(merged_df)
+```
+## Preprocessing and Preparation of  Merged Data
+
+```
+# Convert character columns to numeric
+model_data$Attainment <- as.numeric(model_data$Attainment)
+model_data$Enrollment <- as.numeric(model_data$Enrollment)
+model_data$Electricity <- as.numeric(model_data$Electricity)
+model_data$Sanitation <- as.numeric(model_data$Sanitation)
+model_data$Water <- as.numeric(model_data$Water)
+
+# Identify rows with NA values in each column
+which(is.na(model_data$Attainment))
+which(is.na(model_data$Enrollment))
+which(is.na(model_data$Electricity))
+which(is.na(model_data$Sanitation))
+which(is.na(model_data$Water))
+
+# Remove commas or other unwanted characters (if present)
+model_data$Attainment <- as.numeric(gsub("[^0-9.-]", "", model_data$Attainment))
+model_data$Enrollment <- as.numeric(gsub("[^0-9.-]", "", model_data$Enrollment))
+model_data$Electricity <- as.numeric(gsub("[^0-9.-]", "", model_data$Electricity))
+model_data$Sanitation <- as.numeric(gsub("[^0-9.-]", "", model_data$Sanitation))
+model_data$Water <- as.numeric(gsub("[^0-9.-]", "", model_data$Water))
+
+# Check if there are still NAs after cleaning
+summary(model_data[, c("Attainment", "Enrollment", "Electricity", "Sanitation", "Water")])
+
+# Remove rows with NA in any of the relevant columns
+model_data_clean <- model_data %>% filter(
+  !is.na(Attainment) & !is.na(Enrollment) & !is.na(Electricity) &
+  !is.na(Sanitation) & !is.na(Water)
+)
+
+#Check the number of unique countries
+length(unique(model_data_clean$Country))
+# Get a list of unique countries in your dataset
+unique_countries <- unique(model_data_clean$Country)
+
+# Print the list of countries
+print(unique_countries)
+```
+## Modelling
+
+```
+# Load required libraries
+library(lme4)
+library(car)
+
+# Aggregate countries into regions
+model_data_clean$Region <- case_when(
+  model_data_clean$Country %in% c("Benin", "Cote d'Ivoire", "Guinea-Bissau", "Kenya", "Malawi", "Zambia") ~ "Africa",
+  model_data_clean$Country %in% c("Argentina", "Colombia", "Costa Rica", "Dominican Republic", "Ecuador", 
+                                  "Honduras", "Mexico", "Panama", "Peru", "Paraguay", "El Salvador", "Suriname", 
+                                  "Uruguay") ~ "Latin America",
+  model_data_clean$Country %in% c("Pakistan", "Bangladesh", "Nepal", "Viet Nam") ~ "Asia",
+  model_data_clean$Country %in% c("Tunisia", "Armenia", "Georgia", "Romania", "Serbia") ~ "Europe",
+  TRUE ~ "Other"
+)
+
+# Fit the model with 'Region' as a random effect
+model_without_year <- lmer(
+  log_HIV ~ Poverty_Headcount + Monetary + Attainment + Enrollment + Water + 
+            (1 | Region),  # Only random effect for Region
+  data = model_data_clean,
+  control = lmerControl(optimizer = "Nelder_Mead")  # Using Nelder_Mead optimizer
+)
+
+# Check the summary of the model
+summary(model_without_year)
+
+# Check for multicollinearity using VIF
+vif_values <- vif(lm(Poverty_Headcount ~ Monetary + Attainment + Enrollment + 
+                     Electricity + Sanitation + Water, data = model_data_clean))
+print(vif_values)
+
+# Perform PCA on the predictor variables to reduce multicollinearity 
+predictors <- model_data_clean %>%
+  select(Poverty_Headcount, Monetary, Attainment, Enrollment, Electricity, Sanitation, Water)
+
+pca_result <- prcomp(predictors, scale. = TRUE)
+summary(pca_result)  # Check variance explained by each component
+
+# Use the top principal components as predictors in the model
+model_data_clean <- model_data_clean %>%
+  mutate(
+    PC1 = pca_result$x[, 1],
+    PC2 = pca_result$x[, 2]
+  )
+
+# Fit mixed-effects model using principal components
+model_pca <- lmer(
+  log_HIV ~ PC1 + PC2 + (1 | Region),
+  data = model_data_clean,
+  control = lmerControl(optimizer = "Nelder_Mead")
+)
+
+summary(model_pca)
+```
+## Report: Analysis of HIV Cases and Multidimensional Poverty Factors
+
+### Objective
+The analysis aimed to evaluate the relationship between the number of people living with HIV and the multidimensional poverty headcount ratio. Key poverty factors included income, educational attainment, school enrollment, electricity access, sanitation, and drinking water. Random effects for regions were incorporated to account for variations across geographic areas.
+
+However, due to significant variability in the "Year" variable, it was challenging to model it as a random effect. Therefore, it was excluded from the model to improve interpretability and model convergence.
+
+## Model 1: Multidimensional Poverty Factors and HIV Cases
+
+The first model analyzed the direct relationship between HIV cases (log-transformed) and individual poverty factors, while accounting for region(which are countries aggregated) as a random effect. Below are the findings:
+
+1. **Random Effects**:
+
+- Variance attributed to regions: 0.9825.
+
+- Residual variance: 1.4312.
+
+2. **Fixed Effects**:
+
+- **Poverty_Headcount**: Negligible negative relationship (Estimate: -0.08416, p > 0.05).
+
+- **Monetary**: Positive but non-significant relationship (Estimate: 0.09616, p > 0.05).
+
+- **Attainment**: Slight positive effect (Estimate: 0.05098, p > 0.05).
+
+- **Enrollment**: No meaningful impact (Estimate: -0.01145, p > 0.05).
+
+- **Water Access**: Significant positive relationship (Estimate: 0.11332, p < 0.05), suggesting better water access correlates with higher HIV cases.
+
+3. **Multicollinearity Issues**:
+
+- High variance inflation factors (e.g., Electricity: 19.06, Sanitation: 12.03) indicated severe multicollinearity among predictors, limiting reliable interpretation.
+
+## Addressing Multicollinearity: PCA Approach
+
+To resolve multicollinearity, Principal Component Analysis (PCA) was performed on the predictors, reducing them to two uncorrelated components (PC1 and PC2) which explained 88% of the variance.
+
+1. **Model 2: PCA Components and HIV Cases:**
+
+- Random effect (Region): Variance increased slightly (1.789), capturing regional heterogeneity better.
+
+- Fixed effects:
+
+   -PC1 (dominant contributor to poverty factors): Negative but non-significant effect (Estimate: -0.2982, p > 0.05).
+
+   -PC2 (secondary contributor): Negative but non-significant effect (Estimate: -0.3886, p > 0.05).
+
+2. **Improvement in Fit:**
+
+Lower REML criterion (96.4) compared to the original model (113.4), indicating better model performance.
+
+## Interpretation of Results
+
+- **Significant Predictors:**
+
+   -Water access showed a significant positive correlation with HIV cases in the original model, which may reflect higher reporting accuracy or other contextual factors in areas with improved infrastructure.
+
+- **Dimensional Reduction:**
+
+   -PCA highlighted that no single poverty dimension significantly explains the variation in HIV cases after adjusting for multicollinearity.
+
+- **Random Effects:**
+
+   -Accounting for region proved essential, as it captured substantial variance unexplained by fixed effects
+
+## Limitations
+
+- Excluding Year as a random effect due to its high variability limited the ability to assess temporal trends in the relationship between poverty factors and HIV prevalence.
+
+- Multicollinearity among predictors complicated the interpretation of individual contributions without dimensional reduction.
+
+## Recommendations
+
+**Focus on Regional Interventions:**
+
+- Tailor interventions at the regional level to address the variance captured by the random effects.
+
+**Longitudinal Approaches:**
+
+- Explore alternative methods to model time, such as grouping years into broader categories.
+
+## Downloaded Zipped East African Shapefiles from [GADM](https://www.eac.int/overview-of-eac) for Mapping and Proceeded to Unzip Them
+
+### Unzipping the shapefiles
+```
+# Load necessary package
+library(archive)
+
+# List of EAC country ZIP files
+eac_folders <- c("gadm41_BDI_shp", "gadm41_COD_shp", "gadm41_KEN_shp", 
+                 "gadm41_RWA_shp", "gadm41_SOM_shp", "gadm41_SSD_shp", 
+                 "gadm41_TZA_shp", "gadm41_UGA_shp")
+
+# Base directory where the ZIP files are located
+base_path <- "C:/Users/Vanessa/Downloads/"
+
+# Directory where you want to extract the shapefiles
+extract_path <- "CEMA_Project 1/data/shapefiles/"
+
+# Loop over each country and extract the ZIP file
+for (folder in eac_folders) {
+  zip_file <- paste0(base_path, folder, ".zip")  # Path to the ZIP file
+  target_dir <- paste0(extract_path, folder)    # Directory to extract to
+  
+  # Extract the file
+  archive_extract(zip_file, dir = target_dir)
+  
+  # Check if extraction was successful by listing files
+  extracted_files <- list.files(target_dir)
+  
+  if (length(extracted_files) > 0) {
+    cat(paste("Extraction successful for", folder, "\n"))
+    print(extracted_files)
+  } else {
+    cat(paste("No files extracted for", folder, "\n"))
+  }
+}
+```
+### Inspecting the dataset for under_five and neonatal Mortality Rate
+```
+library(readr)
+library(dplyr)
+# Load your dataset
+
+mortality_data <- read.csv("CEMA_Project 1/data/dataset_datascience.csv")
+
+# Basic Overview
+cat("Structure of the Dataset:\n")
+str(mortality_data)
+cat("\n-------------------------------------\n")
+
+# Detailed Summary
+cat("Summary of the Dataset:\n")
+print(summary(mortality_data))
+cat("\n-------------------------------------\n")
+
+# List of Column Names
+cat("Column Names:\n")
+print(colnames(mortality_data))
+cat("\n-------------------------------------\n")
+
+# Datatype of Each Column
+cat("Datatype of Each Column:\n")
+print(sapply(mortality_data, class))
+cat("\n-------------------------------------\n")
+```
+## Data Cleaning
+```
+# Load required libraries
+library(dplyr)
+library(ggplot2)
+
+# STEP 1: Handle Missing Values
+cleaned_data <- mortality_data[complete.cases(mortality_data$Observation.Value), ]
+
+# STEP 2: Filter Relevant Columns
+cleaned_data <- cleaned_data[, c("Geographic.area", "Indicator", "Reference.Date", "Observation.Value")]
+
+# STEP 3: Standardize Column Names
+colnames(cleaned_data) <- c("Country", "Indicator", "Year", "Value")
+
+# STEP 4: Remove Duplicate Rows
+cleaned_data <- cleaned_data[!duplicated(cleaned_data), ]
+
+# STEP 5: Convert Columns to Correct Data Types
+cleaned_data$Year <- as.numeric(cleaned_data$Year)
+cleaned_data$Value <- as.numeric(cleaned_data$Value)
+
+# STEP 6: Filter for East African Community Countries
+eac_countries <- c("Burundi", "Kenya", "Rwanda", "South Sudan", "United Republic of Tanzania", "Uganda", "Democratic Republic of the Congo", "Somalia")
+cleaned_data <- cleaned_data[cleaned_data$Country %in% eac_countries, ]
+# Standardize country names in both datasets
+latest_data <- latest_data %>%
+  mutate(Country = trimws(Country))  # Remove extra spaces
+
+eac_map <- eac_map %>%
+  mutate(COUNTRY = trimws(COUNTRY))  # Remove extra spaces
+
+
+
+# STEP 7: Separate Data by Indicators
+under_five_data <- cleaned_data[cleaned_data$Indicator == "Under-five mortality rate", ]
+neonatal_data <- cleaned_data[cleaned_data$Indicator == "Neonatal mortality rate", ]
+```
+```
+# Load necessary libraries for geospatial analysis
+library(sf)
+library(dplyr)
+library(ggplot2)
+
+# Update the paths for Level 0 shapefiles
+shapefile_paths <- c(
+  "CEMA_Project 1/data/shapefiles/gadm41_BDI_shp/gadm41_BDI_0.shp",
+  "CEMA_Project 1/data/shapefiles/gadm41_COD_shp/gadm41_COD_0.shp",
+  "CEMA_Project 1/data/shapefiles/gadm41_KEN_shp/gadm41_KEN_0.shp",
+  "CEMA_Project 1/data/shapefiles/gadm41_RWA_shp/gadm41_RWA_0.shp",
+  "CEMA_Project 1/data/shapefiles/gadm41_SOM_shp/gadm41_SOM_0.shp",
+  "CEMA_Project 1/data/shapefiles/gadm41_SSD_shp/gadm41_SSD_0.shp",
+  "CEMA_Project 1/data/shapefiles/gadm41_TZA_shp/gadm41_TZA_0.shp",
+  "CEMA_Project 1/data/shapefiles/gadm41_UGA_shp/gadm41_UGA_0.shp"
+)
+
+# Load all Level 0 shapefiles and combine them
+shapefiles <- lapply(shapefile_paths, st_read)  # Read each shapefile
+eac_map <- do.call(rbind, shapefiles)  # Combine into a single spatial object
+
+# Check structure of the combined shapefile
+print(eac_map)
+```
+```
+# Extract latest estimates for each country and indicator
+latest_data <- cleaned_data %>%
+  group_by(Country, Indicator) %>%
+  filter(Year == max(Year)) %>%
+  ungroup()
+# Remove rows where the Indicator column has missing values
+latest_data <- latest_data %>%
+  filter(!is.na(Indicator))
+
+
+# Join the latest mortality data with the shapefiles
+map_data <- eac_map %>%
+  left_join(latest_data, by = c("COUNTRY" = "Country"))  # Adjusting to use "COUNTRY" from shapefile
+
+# Update country name in latest_data
+unique(eac_map$COUNTRY)
+latest_data <- latest_data %>%
+  mutate(Country = case_when(
+    Country == "United Republic of Tanzania" ~ "Tanzania",
+    TRUE ~ Country
+  ))
+
+# Join mortality data with shapefiles
+map_data <- eac_map %>%
+  left_join(latest_data, by = c("COUNTRY" = "Country"))
+# Check the joined data
+head(map_data)
+```
+```
+# Load required library for visualization
+library(ggplot2)
+library(viridis) # For color scales
+
+# Create maps for under-five and neonatal mortality rates
+ggplot(map_data) +
+  geom_sf(aes(fill = Value), color = "grey50") +
+  facet_wrap(~ Indicator) + # Separate maps for each indicator
+  scale_fill_viridis_c(option = "plasma", na.value = "grey80") + # Add color gradient
+  labs(
+    title = "Latest Mortality Rates in East Africa",
+    subtitle = "Under-Five Mortality Rate and Neonatal Mortality Rate",
+    fill = "Mortality Rate"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "right",
+    panel.grid.major = element_line(color = "grey90"),
+    panel.background = element_rect(fill = "white")
+  )
+```
+![Latest Mortality Rates in East Africa](https://raw.githubusercontent.com/Vannessa622/CEMA_Generated_Reports/master/Latest%20Mortality%20Rates%20in%20East%20Africa.PNG)
+
+## Interpretation of the Maps
+
+## Question:
+The visualization aims to answer this question: What are the latest estimates of key indicators at the country level using shapefiles?
+
+**Map Analysis:**
+
+The visualization includes two distinct maps of East Africa, which display the latest estimates of mortality rates for two indicators: neonatal mortality rates and under-five mortality rates.
+
+1. **Neonatal Mortality Rate Map** (Left Side):
+
+- **Color Gradient**: The map uses shades of purple to depict neonatal mortality rates. Darker purple corresponds to lower rates, while lighter purple represents higher neonatal mortality rates.
+
+- **Findings**:
+
+   - Countries such as **Kenya** and **Tanzania** have intermediate rates, indicated by medium shades.
+
+   - **Somalia** and **South Sudan** likely exhibit some of the highest neonatal mortality rates, as seen by the lighter purple tones.
+
+   - Regions with darker shades, such as **Rwanda**, show lower neonatal mortality rates.
+   
+2. **Under-Five Mortality Rate Map** (Right Side):
+
+- **Color Gradient**: This map employs a gradient ranging from purple to orange. Dark purple represents lower mortality rates, while orange highlights higher rates.
+
+- **Findings**:
+
+   - Countries like **Rwanda** and **Kenya** appear to have lower under-five mortality rates, shown by darker purple regions.
+
+   - **South Sudan**, **Somalia**, and parts of **Ethiopia** demonstrate higher under-five mortality rates, indicated by orange regions.
+
+**Key Insights:**
+
+- There is a clear spatial pattern where certain countries consistently experience higher mortality rates for both indicators. South Sudan and Somalia emerge as critical areas of concern for neonatal and under-five mortality.
+
+- Conversely, countries like Rwanda have better health outcomes, reflected by their lower mortality rates across the two indicators.
+
+- The contrasting color gradients make it easy to compare and prioritize regions needing urgent health interventions.
+
+![Mortality Rates](https://raw.githubusercontent.com/Vannessa622/CEMA_Generated_Reports/master/Mortality%20Rates%202.PNG)
+
+## Average Mortality Rates in East Africa
+
+```
+library(ggplot2)
+library(dplyr)
+# Aggregating data to calculate average trends
+summary_data <- cleaned_data %>%
+  group_by(Year, Indicator) %>%
+  summarise(Average = mean(Value, na.rm = TRUE)) %>%
+  ungroup()
+# Create plots for under-five and neonatal mortality
+ggplot(cleaned_data, aes(x = Year, y = Value, color = Country)) +
+  geom_point() +  # Country-level estimates as points
+  geom_line(aes(group = Country), alpha = 0.7) +  # Country-level trend lines
+  geom_line(data = summary_data, aes(x = Year, y = Average), color = "black", linetype = "dashed", size = 1) +  # Average trend line
+  facet_wrap(~ Indicator, scales = "free_y") +  # Separate plots for each indicator
+  labs(
+    title = "Average Mortality Trends in East Africa",
+    subtitle = "Under-Five Mortality Rate and Neonatal Mortality Rate (2024)",
+    x = "Year",
+    y = "Mortality Rate",
+    caption = "Dashed line represents average trend"
+  ) +
+  scale_color_viridis_d() +  # Optional: Color-blind-friendly palette
+  theme_minimal() +
+  theme(
+    legend.position = "bottom",
+    legend.title = element_blank(),
+    text = element_text(size = 12)
+  )
+```
+```
+Countries With Highest Mortality Rates
+
+# Country with the highest under-five mortality rate
+highest_underfive <- latest_data %>%
+  filter(Indicator == "Under-five mortality rate") %>%
+  arrange(desc(Value)) %>%
+  slice(1)
+
+# Country with the highest neonatal mortality rate
+highest_neonatal <- latest_data %>%
+  filter(Indicator == "Neonatal mortality rate") %>%
+  arrange(desc(Value)) %>%
+  slice(1)
+
+# Print the results
+cat("Country with the highest under-five mortality rate:\n")
+print(highest_underfive)
+
+cat("\nCountry with the highest neonatal mortality rate:\n")
+print(highest_neonatal)
+```
+## Mortality Rate Analysis in East African Community Countries (2024)
+
+### Objective
+
+This report aims to highlight mortality trends in East African Community (EAC) countries, focusing on the most recent data from 2024. The findings emphasize countries with the highest under-five and neonatal mortality rates, based on visualizations and statistical analysis.
+
+### Findings
+
+1. **Under-Five Mortality Rates**
+
+- **Country with the Highest Rate**: Somalia
+
+- **Mortality Rate: 123 deaths per 1,000 live births**
+
+- **Key Insight**: Somalia holds the highest under-five mortality rate in 2024. This staggering figure suggests severe socio-economic challenges, limited healthcare infrastructure, malnutrition, and inadequate access to clean water and sanitation facilities. It highlights an urgent need for targeted interventions aimed at improving child health and survival in Somalia
+
+2. **Neonatal Mortality Rates**
+
+- **Country with the Highest Rate**: South Sudan
+
+- **Mortality Rate: 40.2 deaths per 1,000 live births**
+
+- **Key Insight**: South Sudan experiences the highest neonatal mortality rate, which refers to deaths within the first 28 days of life. This figure signals critical shortcomings in maternal healthcare, safe delivery practices, and neonatal care. Improving access to skilled birth attendants and neonatal healthcare facilities is crucial to addressing this issue.
+
+### Visualized Trends
+
+The mortality trends over time, as displayed in the graphs, demonstrate:
+
+1. **Overall Decline**: Both under-five and neonatal mortality rates show a declining trend across the region, reflecting incremental progress in child health initiatives.
+
+2. **Regional Disparities**: Despite progress, countries like Somalia and South Sudan show significantly higher mortality rates compared to the regional average. This underscores the need for equitable resource allocation and country-specific interventions.
+
+### Recommendations
+
+1. **Focus on High-Burden Countries:**
+
+Direct resources and interventions toward Somalia and South Sudan to address their uniquely high mortality rates.
+
+Interventions should include improving healthcare infrastructure, enhancing nutritional programs, and expanding vaccination campaigns.
+
+2. **Strengthen Maternal and Neonatal Care:**
+
+Expand access to skilled birth attendants and neonatal care units, particularly in rural and underserved areas.
+
+Promote safe delivery practices and maternal education programs to reduce neonatal deaths.
+
+3. **Regional Collaboration:**
+
+Encourage collaboration among EAC countries to share best practices, resources, and funding mechanisms for child health improvements.
+
+Leverage regional partnerships to implement scalable solutions to child mortality.
+
+4. **Data Monitoring and Evaluation:**
+
+Regularly track mortality rate trends to assess the impact of interventions and adapt strategies as needed.
+
+Develop robust data collection frameworks to ensure consistent, accurate, and actionable insights.
+
+### Conclusion
+
+While the East African region is making progress in reducing child mortality rates, Somalia and South Sudan remain outliers, with alarmingly high rates of under-five and neonatal mortality. Addressing these disparities requires a multi-faceted approach, combining healthcare improvements, socio-economic interventions, and regional collaboration.
+
+
+  
+
+
+
+
